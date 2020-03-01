@@ -19,3 +19,6 @@ trainer:
     use_amp: True
     distributed_backend: 'ddp'
     val_check_interval: 0.03
+aug:
+  prob: 0.5
+  level: 0
