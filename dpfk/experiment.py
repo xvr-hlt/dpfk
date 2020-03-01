@@ -154,20 +154,3 @@ def run(config):
     experiment = Experiment(config)
     trainer = pl.Trainer(**trainer_conf)
     trainer.fit(experiment)
-
-
-def get_hparams(config):
-
-    def _flatten_dict(d):
-        fd = {}
-        for k, v in d.items():
-            if isinstance(v, dict):
-                for fk, fv in _flatten_dict(v).items():
-                    fd[f"{k}.{fk}"] = fv
-            else:
-                fd[k] = v
-        return fd
-
-    flat_config = _flatten_dict(config)
-    hparams = types.SimpleNamespace(**flat_config)
-    return hparams
