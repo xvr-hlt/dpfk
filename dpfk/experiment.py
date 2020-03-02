@@ -3,16 +3,16 @@ import os
 import types
 from os import path
 
-import neptune
 import pytorch_lightning as pl
 import torch
 import yaml
 from kornia import augmentation
-from pytorch_lightning.logging import wandb
-from torch import nn, optim
+from torch import distributed, nn, optim
 from torch.nn import functional as F
 
 import dpfk.nn.model
+#from pytorch_lightning.logging import wandb
+import wandb
 from dpfk.data import loader, util
 
 
@@ -38,11 +38,19 @@ class Experiment(pl.LightningModule):
             # ncpus *= gpus
         self.batch_size = batch_size
         self.ncpus = ncpus
+        self._wandb = None
+        self._rank = None
 
     def forward(self, x):
         if self.training:
             x = self.augment(x)
         return self.model.forward(x)
+
+    @property
+    def wandb(self):
+        if self._wandb is None:
+            self._wandb = wandb.init(project='dpfk', config=self.config)
+        return self._wandb
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -53,6 +61,15 @@ class Experiment(pl.LightningModule):
             loss = loss.unsqueeze(0)
 
         return {'loss': loss}
+
+    @property
+    def rank(self):
+        if self._rank is None:
+            try:
+                self._rank = distributed.get_rank()
+            except:
+                self._rank = 0
+        return self._rank
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -70,14 +87,13 @@ class Experiment(pl.LightningModule):
 
         if self.trainer.use_dp or self.trainer.use_ddp2:
             state = {k: v.unsqueeze(0) for k, v in state.items()}
-
         return state
 
     def validation_end(self, outputs):
-        tp = torch.stack([o['tp'] for o in outputs]).sum()
-        fp = torch.stack([o['fp'] for o in outputs]).sum()
-        tn = torch.stack([o['tn'] for o in outputs]).sum()
-        fn = torch.stack([o['fn'] for o in outputs]).sum()
+        tp = torch.stack([o['tp'] for o in outputs]).sum().float()
+        fp = torch.stack([o['fp'] for o in outputs]).sum().float()
+        tn = torch.stack([o['tn'] for o in outputs]).sum().float()
+        fn = torch.stack([o['fn'] for o in outputs]).sum().float()
 
         loss = torch.stack([o['val_loss'] for o in outputs]).mean()
         acc = (tp + tn) / (tp + tn + fp + fn)
@@ -92,6 +108,10 @@ class Experiment(pl.LightningModule):
             'val_rec': rec,
             'val_f1': f1
         }
+
+        if self.rank == 0:
+            self.wandb.log(metrics)
+
         return metrics
 
     @pl.data_loader
@@ -149,8 +169,8 @@ def run(config):
             config = yaml.safe_load(f)
     trainer_conf = config['trainer']
 
-    logger = wandb.WandbLogger(project="dpfk")
-    logger.experiment.config = config
+    #logger = wandb.WandbLogger(project="dpfk")
+    #logger.experiment.config = config
     experiment = Experiment(config)
     trainer = pl.Trainer(**trainer_conf)
     trainer.fit(experiment)

@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 with open('README.md', 'r', encoding='utf-8') as f:
     readme = f.read()
 
-REQUIRES = []
+REQUIRES = ["kornia==0.2.0", "opencv-python==4.2"]
 
 kwargs = {
     'name': 'dpfk',

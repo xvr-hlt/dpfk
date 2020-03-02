@@ -1,5 +1,5 @@
 data:
-  batch_size: 12
+  batch_size: 24
   images_home: /home/xavier_holt/tensorflow_datasets/df_images/
   instances_home: /home/xavier_holt/tensorflow_datasets/ts_im/
 loss:
