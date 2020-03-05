@@ -1,24 +1,26 @@
 data:
-  batch_size: 24
+  batch_size: 42
   images_home: /home/xavier_holt/tensorflow_datasets/df_images/
   instances_home: /home/xavier_holt/tensorflow_datasets/ts_im/
+  size: [512, 768]
 loss:
   kwargs: {}
   type: BCEWithLogitsLoss
 model:
   kwargs:
-    advprop: true
+    advprop: True
     num_classes: 1
   type: efficientnet-b3
 optim:
   kwargs:
-    lr: 3.0e-05
+    lr: 3.0e-06
   type: Adam
 trainer:
     gpus: 4
     use_amp: True
-    distributed_backend: 'ddp'
+    distributed_backend: ddp
     val_check_interval: 0.03
+    max_epochs: 100
 aug:
   prob: 0.5
-  level: 0
+  level: 1

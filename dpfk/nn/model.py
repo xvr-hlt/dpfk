@@ -7,10 +7,6 @@ def get_model_normalize_from_config(config):
     model = efficientnet_pytorch.model.EfficientNet.from_pretrained(
         config_model['type'], **config_model['kwargs'])
     if config_model['kwargs']['advprop']:
-
-        def _norm(img):
-            return img * 2.0 - 10
-
         normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5],
                                          std=[0.5, 0.5, 0.5])
     else:
