@@ -79,17 +79,19 @@ class ImageLoader(torch.utils.data.Dataset):
         augs = []
         augs.append(transforms.RandomHorizontalFlip(prob))
         if aug_level > 0:
-            distortion_scale = [None, 0.125, 0.25, 0.5][aug_level]
+            distortion_scale = [None, 0.125, 0.25, 0.5, 0.75][aug_level]
             augs.append(
                 transforms.RandomPerspective(distortion_scale=distortion_scale,
                                              p=prob))
 
-            degrees = [None, 20., 40., 60.][aug_level]
+            degrees = [None, 20., 40., 60., 80.][aug_level]
             augs.append(
                 transforms.RandomApply([transforms.RandomRotation(degrees)],
                                        p=prob))
-            scale = [None, (0.9, 1.0), (0.8, 1.0), (0.7, 1.0)][aug_level]
-            ratio = [None, (0.9, 1.1), (0.8, 1.2), (0.7, 1.3)][aug_level]
+            scale = [None, (0.9, 1.0), (0.8, 1.0), (0.7, 1.0),
+                     (0.8, 1.0)][aug_level]
+            ratio = [None, (0.9, 1.1), (0.8, 1.2), (0.7, 1.3),
+                     (0.8, 1.4)][aug_level]
 
             augs.append(
                 transforms.RandomApply([

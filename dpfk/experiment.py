@@ -6,6 +6,7 @@ from os import path
 import pytorch_lightning as pl
 import torch
 import yaml
+from pytorch_lightning.logging import wandb as wandb_log
 from torch import distributed, nn, optim
 from torch.nn import functional as F
 from torchvision import transforms
@@ -118,7 +119,7 @@ class Experiment(pl.LightningModule):
             'val_n': n
         }
 
-        if self.rank == 0:
+        if self.rank == 0 and n > 1000:
             self.wandb.log(metrics)
 
         return metrics
@@ -168,6 +169,7 @@ def run(config):
     if isinstance(config, str):
         with open(config) as f:
             config = yaml.safe_load(f)
+    #logger = wandb_log.WandbLogger(project='dpfk')
     trainer_conf = config['trainer']
     experiment = Experiment(config)
     trainer = pl.Trainer(**trainer_conf)
