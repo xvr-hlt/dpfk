@@ -1,3 +1,4 @@
+import datetime
 import glob
 import os
 import types
@@ -6,7 +7,7 @@ from os import path
 import pytorch_lightning as pl
 import torch
 import yaml
-from pytorch_lightning.logging import wandb as wandb_log
+from pytorch_lightning import callbacks
 from torch import distributed, nn, optim
 from torch.nn import functional as F
 from torchvision import transforms
@@ -27,15 +28,6 @@ class Experiment(pl.LightningModule):
         self.model, self.normalize = dpfk.nn.model.get_model_normalize_from_config(
             config)
         self.loss = self.configure_loss()
-
-        self.distributed_backend = config['trainer'].get('distributed_backend')
-        self.distributed_sampler = (self.distributed_backend == 'ddp')
-
-        batch_size = config['data']['batch_size']
-
-        if self.distributed_backend == "dp":
-            gpus = config['trainer']['gpus']
-            batch_size *= gpus
 
         self._batch_size = None
         self._wandb = None
@@ -121,7 +113,6 @@ class Experiment(pl.LightningModule):
 
         if self.rank == 0 and n > 1000:
             self.wandb.log(metrics)
-
         return metrics
 
     @pl.data_loader
@@ -169,8 +160,19 @@ def run(config):
     if isinstance(config, str):
         with open(config) as f:
             config = yaml.safe_load(f)
-    #logger = wandb_log.WandbLogger(project='dpfk')
-    trainer_conf = config['trainer']
+
+    now = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    run_dir = path.join("wandb", now)
+    run_dir = path.abspath(run_dir)
+    os.environ['WANDB_RUN_DIR'] = run_dir
+
+    checkpoint_callback = callbacks.ModelCheckpoint(run_dir)
+    early_stopping_callback = callbacks.EarlyStopping(
+        **config['early_stopping'])
+
     experiment = Experiment(config)
-    trainer = pl.Trainer(**trainer_conf)
+    trainer = pl.Trainer(logger=False,
+                         checkpoint_callback=checkpoint_callback,
+                         early_stop_callback=early_stopping_callback,
+                         **config['trainer'])
     trainer.fit(experiment)

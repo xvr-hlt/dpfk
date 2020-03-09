@@ -4,9 +4,9 @@ from os import path
 import numpy as np
 import torch
 from PIL import Image
-from torchvision import transforms
 
 import dpfk
+from torchvision import transforms
 
 
 class ImageLoader(torch.utils.data.Dataset):
