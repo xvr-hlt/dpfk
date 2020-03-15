@@ -19,7 +19,8 @@ from dpfk.data import loader, util
 
 class Experiment(pl.LightningModule):
 
-    ncpus = 15
+    NCPUS = 15
+    VAL_POS_WEIGHT = torch.Tensor([0.069])  # n_neg/n_pos for validation split
 
     def __init__(self, config):
         super().__init__()
@@ -27,6 +28,7 @@ class Experiment(pl.LightningModule):
 
         self.model, self.normalize = dpfk.nn.model.get_model_normalize_from_config(
             config)
+
         self.loss = self.configure_loss()
 
         self._batch_size = None
@@ -74,15 +76,26 @@ class Experiment(pl.LightningModule):
         x, y = batch
         y_hat = self.forward(x)
         loss = self.loss(y_hat, y)
+
+        val_loss_weighted = F.binary_cross_entropy_with_logits(
+            y_hat, y, pos_weight=self.VAL_POS_WEIGHT.cuda())
+
         y_pred = y_hat > 0
         y_true = y.bool()
 
-        tp = y_true[y_pred].sum()
-        fp = y_true[~y_pred].sum()
-        tn = (~y_true[~y_pred]).sum()
-        fn = (~y_true[y_pred]).sum()
+        tp = (y_true * y_pred).sum()
+        fp = (~y_true * y_pred).sum()
+        fn = (y_true * ~y_pred).sum()
+        tn = (~y_true * ~y_pred).sum()
 
-        state = {'val_loss': loss, 'tp': tp, 'fp': fp, 'tn': tn, 'fn': fn}
+        state = {
+            'val_loss': loss,
+            'val_loss_weighted': val_loss_weighted,
+            'tp': tp,
+            'fp': fp,
+            'tn': tn,
+            'fn': fn
+        }
 
         if self.trainer.use_dp or self.trainer.use_ddp2:
             state = {k: v.unsqueeze(0) for k, v in state.items()}
@@ -97,18 +110,23 @@ class Experiment(pl.LightningModule):
         n = (tp + tn + fp + fn)
 
         loss = torch.stack([o['val_loss'] for o in outputs]).mean()
-        acc = (tp + tn) / n
-        prec = tp / (tp + fp) if (tp + fp) else 0.
-        rec = tp / (tp + fn) if (tp + fn) else 0.
-        f1 = 2 * (prec * rec) / (prec + rec) if (prec + rec) else 0.
+        loss_weighted = torch.stack([o['val_loss_weighted'] for o in outputs
+                                    ]).mean()
+
+        tpr = tp / (tp + fn) if (tp + fn) else 0.
+        tnr = tn / (tn + fp) if (tn + fp) else 0.
 
         metrics = {
             'val_loss': loss,
-            'val_acc': acc,
-            'val_prec': prec,
-            'val_rec': rec,
-            'val_f1': f1,
-            'val_n': n
+            'val_loss_weighted': loss_weighted,
+            'val_tpr': tpr,
+            'val_tnr': tnr,
+            'val_balanced_acc': (tpr + tnr) / 2,
+            'val_n': n,
+            'val_tp': tp,
+            'val_fp': fp,
+            'val_tn': tn,
+            'val_fn': fn
         }
 
         if self.rank == 0 and n > 1000:
@@ -126,7 +144,7 @@ class Experiment(pl.LightningModule):
         return torch.utils.data.DataLoader(dataset,
                                            batch_size=self.batch_size,
                                            sampler=sampler,
-                                           num_workers=self.ncpus,
+                                           num_workers=self.NCPUS,
                                            pin_memory=True)
 
     @pl.data_loader
@@ -142,18 +160,29 @@ class Experiment(pl.LightningModule):
         return torch.utils.data.DataLoader(dataset,
                                            batch_size=self.batch_size,
                                            sampler=sampler,
-                                           num_workers=self.ncpus,
+                                           num_workers=self.NCPUS,
                                            pin_memory=True)
 
     def configure_optimizers(self):
         optim_conf = self.config['optim']
         optim_cls = optim.__dict__[optim_conf['type']]
-        return optim_cls(self.parameters(), **optim_conf['kwargs'])
+        optimizer = optim_cls(self.parameters(), **optim_conf['kwargs'])
+
+        optim_scheduler_conf = self.config['optim_scheduler']
+        optim_scheduler_cls = optim.lr_scheduler.__dict__[
+            optim_scheduler_conf['type']]
+        optim_scheduler = optim_scheduler_cls(optimizer,
+                                              **optim_scheduler_conf['kwargs'])
+
+        return [optimizer], [optim_scheduler]
 
     def configure_loss(self):
         loss_conf = self.config['loss']
         loss_cls = nn.modules.loss.__dict__[loss_conf['type']]
-        return loss_cls(**loss_conf['kwargs'])
+        loss_kwargs = loss_conf['kwargs']
+        if 'pos_weight' in loss_kwargs:
+            loss_kwargs['pos_weight'] = torch.Tensor(loss_kwargs['pos_weight'])
+        return loss_cls(**loss_kwargs)
 
 
 def run(config):
@@ -166,7 +195,8 @@ def run(config):
     run_dir = path.abspath(run_dir)
     os.environ['WANDB_RUN_DIR'] = run_dir
 
-    checkpoint_callback = callbacks.ModelCheckpoint(run_dir)
+    checkpoint_callback = callbacks.ModelCheckpoint(
+        run_dir, monitor=config['early_stopping']['monitor'])
     early_stopping_callback = callbacks.EarlyStopping(
         **config['early_stopping'])
 

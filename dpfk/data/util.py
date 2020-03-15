@@ -68,3 +68,13 @@ def write_frames(folders, destination_folder='data/', resolution=(576, 1024)):
             tqdm(pool.map(fn, instances),
                  desc="Videos parsed",
                  total=len(instances))
+
+
+"""
+def scratch():
+    mt = pd.read_csv('metadata.csv', index_col=0)
+    audio_altered = ((mt['original'] != 'NAN') & (mt['wav.hash'] != mt['wav.hash.orig']))
+    mt_audio = mt[audio_altered]
+    g45 = mt_audio.folder.map(lambda x: int(x.split('_')[-1]) >= 45)   
+    mt_audio[mt_audio['audio.@codec_time_base'] == '1/16000']
+"""

@@ -1,7 +1,6 @@
 import fire
-import pytorch_lightning
-import yaml
 
 from . import experiment
 
-fire.Fire(experiment.run)
+if __name__ == "__main__":
+    fire.Fire(experiment.run)

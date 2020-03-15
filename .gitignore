@@ -13,3 +13,4 @@ wheelhouse/
 wandb/
 lightning_logs/
 .ipynb_checkpoints/
+submissions/
