@@ -1,3 +1,4 @@
+import cv2
 import torch
 from torchvision import transforms
 
@@ -22,6 +23,7 @@ class InferenceEngine:
         preds = []
         frames = data_util.grab_frames(vid_path)
         for frame in frames:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = self.preprocess(frame).to(self.device)
             frame = frame[None]
             preds.append(self.model(frame).sigmoid())

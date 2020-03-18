@@ -1,26 +1,25 @@
 data:
-  batch_size: 22
+  batch_size: 28
   images_home: /home/xavier_holt/tensorflow_datasets/df_images/
   instances_home: /home/xavier_holt/tensorflow_datasets/ts_im/
-  size: [576, 1024] # [416, 768] # [576, 1024]
+  size: [576, 1024] # [416, 768]
 loss:
   kwargs:
-    pos_weight: [0.2]
+    pos_weight: [0.16]
   type: BCEWithLogitsLoss
 model:
   kwargs:
     advprop: True
     num_classes: 1
-  type: efficientnet-b4
+  type: efficientnet-b3
 optim:
   kwargs:
-    lr: 3.0e-06
+    lr: 5.0e-06
   type: Adam
 optim_scheduler:
-  type: StepLR
+  type: ExponentialLR
   kwargs:
-    step_size: 10
-    gamma: 0.2
+    gamma: 0.99
 trainer:
     gpus: 4
     use_amp: True
@@ -33,4 +32,4 @@ early_stopping:
   mode: min
 aug:
   prob: 0.5
-  level: 3
+  level: 4

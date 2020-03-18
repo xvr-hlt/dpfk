@@ -6,6 +6,7 @@ from os import path
 from typing import Optional
 
 import cv2
+import numpy as np
 from tqdm.auto import tqdm
 
 
@@ -34,14 +35,17 @@ def get_instances_from_folder(folder):
     return instances
 
 
-def grab_frames(vid_path: str, nth: int = 10):
+def grab_frames(vid_path: str, n: int = 32):
     capture = cv2.VideoCapture(vid_path)
     n_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    sample = set(np.linspace(0, n_frames - 1, n).astype(int))
     for i in range(n_frames):
         _ = capture.grab()
-        if i % nth == 0:
-            _, im = capture.retrieve()
-            yield im
+        if i in sample:
+            success, im = capture.retrieve()
+            if success:
+                yield im
+    capture.release()
 
 
 def save_ims(video_path, out_dir, resolution, grab_frames_kwargs=None):

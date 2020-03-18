@@ -20,7 +20,8 @@ from dpfk.data import loader, util
 class Experiment(pl.LightningModule):
 
     NCPUS = 15
-    VAL_POS_WEIGHT = torch.Tensor([0.069])  # n_neg/n_pos for validation split
+    VAL_POS_WEIGHT = torch.Tensor([0.155])  # n_neg/n_pos for validation split
+    VAL_FACTOR = 3.22
 
     def __init__(self, config):
         super().__init__()
@@ -110,8 +111,8 @@ class Experiment(pl.LightningModule):
         n = (tp + tn + fp + fn)
 
         loss = torch.stack([o['val_loss'] for o in outputs]).mean()
-        loss_weighted = torch.stack([o['val_loss_weighted'] for o in outputs
-                                    ]).mean()
+        loss_weighted = self.VAL_FACTOR * torch.stack(
+            [o['val_loss_weighted'] for o in outputs]).mean()
 
         tpr = tp / (tp + fn) if (tp + fn) else 0.
         tnr = tn / (tn + fp) if (tn + fp) else 0.

@@ -4,12 +4,17 @@ from os import path
 import numpy as np
 import torch
 from PIL import Image
+from torchvision import transforms
 
 import dpfk
-from torchvision import transforms
 
 
 class ImageLoader(torch.utils.data.Dataset):
+
+    @staticmethod
+    def is_validation_fold(fold):
+        suffix = fold.split('_')[-1]
+        return suffix in {'0', '18', '27', '36', '45'}
 
     def __init__(self, files, labels, normalization, size, augmentation=None):
         if isinstance(size, list):
@@ -42,15 +47,18 @@ class ImageLoader(torch.utils.data.Dataset):
     @classmethod
     def get_train_loader(cls, config, normalize):
         data_conf = config['data']
-        _, *train_folders = sorted(
-            glob.glob(path.join(data_conf['instances_home'], '*')))
+        folders = sorted(glob.glob(path.join(data_conf['instances_home'], '*')))
+        train_folders = [f for f in folders if not cls.is_validation_fold(f)]
         train_instances = [
             i for f in train_folders
             for i in dpfk.data.util.get_instances_from_folder(f)
         ]
         labels = {i.name.replace('.mp4', ''): i.label for i in train_instances}
-        _, *train_image_folders = sorted(
+        image_folders = sorted(
             glob.glob(path.join(data_conf['images_home'], '*')))
+        train_image_folders = [
+            f for f in image_folders if not cls.is_validation_fold(f)
+        ]
         train_images = [
             im for f in train_image_folders
             for im in glob.glob(path.join(f, '*.jpg'))
@@ -64,11 +72,22 @@ class ImageLoader(torch.utils.data.Dataset):
     @classmethod
     def get_val_loader(cls, config, normalize):
         data_conf = config['data']
-        val_folder, *_ = sorted(
-            glob.glob(path.join(data_conf['instances_home'], '*')))
-        val_instances = dpfk.data.util.get_instances_from_folder(val_folder)
+        folders = sorted(glob.glob(path.join(data_conf['instances_home'], '*')))
+        val_folders = [f for f in folders if cls.is_validation_fold(f)]
+        val_instances = [
+            i for f in val_folders
+            for i in dpfk.data.util.get_instances_from_folder(f)
+        ]
         labels = {i.name.replace('.mp4', ''): i.label for i in val_instances}
-        val_images = glob.glob(path.join(data_conf['images_home'], '*_0/*.jpg'))
+        image_folders = sorted(
+            glob.glob(path.join(data_conf['images_home'], '*')))
+        val_image_folders = [
+            f for f in image_folders if cls.is_validation_fold(f)
+        ]
+        val_images = [
+            im for f in val_image_folders
+            for im in glob.glob(path.join(f, '*.jpg'))
+        ]
         size = data_conf['size']
         return cls(val_images, labels, normalize, size)
 
