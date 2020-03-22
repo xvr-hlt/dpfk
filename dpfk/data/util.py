@@ -35,7 +35,7 @@ def get_instances_from_folder(folder):
     return instances
 
 
-def grab_frames(vid_path: str, n: int = 32):
+def grab_frames(vid_path: str, n: int = 16):
     capture = cv2.VideoCapture(vid_path)
     n_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     sample = set(np.linspace(0, n_frames - 1, n).astype(int))
@@ -60,7 +60,7 @@ def save_ims(video_path, out_dir, resolution, grab_frames_kwargs=None):
         cv2.imwrite(out_pth, f)
 
 
-def write_frames(folders, destination_folder='data/', resolution=(576, 1024)):
+def write_frames(folders, destination_folder='data/', resolution=(1024, 576)):
     for folder in tqdm(folders, desc="Folders parsed"):
         instances = get_instances_from_folder(folder)
         _, folder_name = path.split(folder)
@@ -68,7 +68,7 @@ def write_frames(folders, destination_folder='data/', resolution=(576, 1024)):
         os.mkdir(out_dir)
 
         fn = lambda i: save_ims(i.path, out_dir, resolution)
-        with futures.ThreadPoolExecutor(12) as pool:
+        with futures.ThreadPoolExecutor(24) as pool:
             tqdm(pool.map(fn, instances),
                  desc="Videos parsed",
                  total=len(instances))

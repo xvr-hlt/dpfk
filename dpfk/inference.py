@@ -9,13 +9,17 @@ from dpfk.nn import model
 
 class InferenceEngine:
 
-    def __init__(self, config, weights, device='cuda'):
+    def __init__(self, config, weights, device='cuda', infer_size=(576, 1024)):
         config = util.read_config(config)
         self.model, normalize = model.get_model_normalize_from_config(
             config, pretrained=False)
         util.load_weights(self.model, weights)
         self.model = self.model.to(device)
-        self.preprocess = transforms.Compose([transforms.ToTensor(), normalize])
+        self.preprocess = transforms.Compose([
+            transforms.ToTensor(),
+            normalize,
+        ])
+        self.infer_size = tuple(reversed(infer_size))
         self.device = device
 
     @torch.no_grad()
@@ -23,6 +27,7 @@ class InferenceEngine:
         preds = []
         frames = data_util.grab_frames(vid_path)
         for frame in frames:
+            frame = cv2.resize(frame, self.infer_size)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = self.preprocess(frame).to(self.device)
             frame = frame[None]
