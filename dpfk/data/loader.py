@@ -8,6 +8,7 @@ from torchvision import transforms
 
 import dpfk
 
+from . import util
 
 class ImageLoader(torch.utils.data.Dataset):
 
@@ -26,7 +27,8 @@ class ImageLoader(torch.utils.data.Dataset):
             pipeline.append(augmentation)
         pipeline.append(transforms.Resize(size))
         pipeline.append(transforms.ToTensor())
-        pipeline.append(normalization)
+        if normalization is not None:
+            pipeline.append(normalization)
         self.pipeline = transforms.Compose(pipeline)
 
     def __getitem__(self, i):
@@ -51,7 +53,7 @@ class ImageLoader(torch.utils.data.Dataset):
         train_folders = [f for f in folders if not cls.is_validation_fold(f)]
         train_instances = [
             i for f in train_folders
-            for i in dpfk.data.util.get_instances_from_folder(f)
+            for i in util.get_instances_from_folder(f)
         ]
         labels = {i.name.replace('.mp4', ''): i.label for i in train_instances}
         image_folders = sorted(
@@ -76,7 +78,7 @@ class ImageLoader(torch.utils.data.Dataset):
         val_folders = [f for f in folders if cls.is_validation_fold(f)]
         val_instances = [
             i for f in val_folders
-            for i in dpfk.data.util.get_instances_from_folder(f)
+            for i in util.get_instances_from_folder(f)
         ]
         labels = {i.name.replace('.mp4', ''): i.label for i in val_instances}
         image_folders = sorted(

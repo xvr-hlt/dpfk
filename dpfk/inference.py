@@ -9,7 +9,7 @@ from dpfk.nn import model
 
 class InferenceEngine:
 
-    def __init__(self, config, weights, device='cuda', infer_size=(576, 1024)):
+    def __init__(self, config, weights, device='cuda', infer_size=(1024, 576):
         config = util.read_config(config)
         self.model, normalize = model.get_model_normalize_from_config(
             config, pretrained=False)

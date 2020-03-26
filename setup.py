@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 with open('README.md', 'r', encoding='utf-8') as f:
     readme = f.read()
 
-REQUIRES = ["opencv-python==4.2"]
+REQUIRES = ["efficientnet-pytorch==0.6.3", "opencv-python==4", "pytorch_lightning", "fire"]
 
 kwargs = {
     'name': 'dpfk',

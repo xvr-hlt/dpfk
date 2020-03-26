@@ -1,7 +1,7 @@
 data:
   batch_size: 28
-  images_home: /home/xavier_holt/tensorflow_datasets/df_images/
-  instances_home: /home/xavier_holt/tensorflow_datasets/ts_im/
+  images_home: /home/xavier_holt/data/image/segm/
+  instances_home: /home/xavier_holt/data/image/dfdc
   size: [576, 1024] # [416, 768]
 loss:
   kwargs:
@@ -30,6 +30,8 @@ early_stopping:
   monitor: val_loss_weighted
   patience: 10
   mode: min
+image_scales: [1., 1., .75, .75, .5, .25]
 aug:
   prob: 0.5
   level: 2
+  

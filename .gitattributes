@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+dpfk/nn/facedet/blazeface.pth filter=lfs diff=lfs merge=lfs -text
+dpfk/nn/facedet/anchors.npy filter=lfs diff=lfs merge=lfs -text

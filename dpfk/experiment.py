@@ -1,11 +1,13 @@
 import datetime
 import glob
 import os
+import random
 import types
 from os import path
 
 import pytorch_lightning as pl
 import torch
+import wandb
 import yaml
 from pytorch_lightning import callbacks
 from torch import distributed, nn, optim
@@ -13,19 +15,17 @@ from torch.nn import functional as F
 from torchvision import transforms
 
 import dpfk.nn.model
-import wandb
 from dpfk.data import loader, util
 
 
 class Experiment(pl.LightningModule):
 
     NCPUS = 15
-    VAL_POS_WEIGHT = torch.Tensor([0.155])  # n_neg/n_pos for validation split
-    VAL_FACTOR = 3.22
 
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.image_scales = config['image_scales']
 
         self.model, self.normalize = dpfk.nn.model.get_model_normalize_from_config(
             config)
@@ -56,6 +56,9 @@ class Experiment(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
+        with torch.no_grad():
+            scale = random.choice(self.image_scales)
+            x = F.interpolate(x, scale_factor=scale)
         y_hat = self.forward(x)
 
         loss = self.loss(y_hat, y)
@@ -78,9 +81,6 @@ class Experiment(pl.LightningModule):
         y_hat = self.forward(x)
         loss = self.loss(y_hat, y)
 
-        val_loss_weighted = F.binary_cross_entropy_with_logits(
-            y_hat, y, pos_weight=self.VAL_POS_WEIGHT.cuda())
-
         y_pred = y_hat > 0
         y_true = y.bool()
 
@@ -89,17 +89,26 @@ class Experiment(pl.LightningModule):
         fn = (y_true * ~y_pred).sum()
         tn = (~y_true * ~y_pred).sum()
 
+        val_loss_pos = F.binary_cross_entropy_with_logits(y_hat[y_true],
+                                                          y[y_true],
+                                                          reduction='sum')
+        val_loss_neg = F.binary_cross_entropy_with_logits(y_hat[~y_true],
+                                                          y[~y_true],
+                                                          reduction='sum')
+
         state = {
             'val_loss': loss,
-            'val_loss_weighted': val_loss_weighted,
             'tp': tp,
             'fp': fp,
             'tn': tn,
-            'fn': fn
+            'fn': fn,
+            'val_loss_pos': val_loss_pos,
+            'val_loss_neg': val_loss_neg,
         }
 
         if self.trainer.use_dp or self.trainer.use_ddp2:
             state = {k: v.unsqueeze(0) for k, v in state.items()}
+
         return state
 
     def validation_end(self, outputs):
@@ -111,8 +120,14 @@ class Experiment(pl.LightningModule):
         n = (tp + tn + fp + fn)
 
         loss = torch.stack([o['val_loss'] for o in outputs]).mean()
-        loss_weighted = self.VAL_FACTOR * torch.stack(
-            [o['val_loss_weighted'] for o in outputs]).mean()
+
+        loss_neg = torch.stack([o['val_loss_neg'] for o in outputs]).sum()
+        loss_neg /= (tn + fp)
+
+        loss_pos = torch.stack([o['val_loss_pos'] for o in outputs]).sum()
+        loss_pos /= (tp + fn)
+
+        loss_weighted = (loss_neg + loss_pos) / 2
 
         tpr = tp / (tp + fn) if (tp + fn) else 0.
         tnr = tn / (tn + fp) if (tn + fp) else 0.
@@ -120,6 +135,8 @@ class Experiment(pl.LightningModule):
         metrics = {
             'val_loss': loss,
             'val_loss_weighted': loss_weighted,
+            'val_loss_pos': loss_pos,
+            'val_loss_neg': loss_neg,
             'val_tpr': tpr,
             'val_tnr': tnr,
             'val_balanced_acc': (tpr + tnr) / 2,
