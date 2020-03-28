@@ -19,7 +19,6 @@ class InferenceEngine:
         self.facedet = facenet_pytorch.MTCNN(device=device,
                                              **self.config['facedet_kwargs'])
         self.device = device
-        self._model = None
         self.n = n
 
         model_dir = max(glob.glob(path.join(run_dir, 'runs', '*')))
@@ -30,6 +29,7 @@ class InferenceEngine:
             model_config, pretrained=False)
         util.load_weights(self.model, model_pth)
         self.model = self.model.to(device)
+        self.model.eval()
 
     @torch.no_grad()
     def __call__(self, vid_path):

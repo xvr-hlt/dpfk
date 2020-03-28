@@ -5,7 +5,7 @@ data:
   size: [256, 256]
 loss:
   kwargs:
-    pos_weight: [0.15]
+    pos_weight: [0.1]
   type: BCEWithLogitsLoss
 model:
   kwargs:
@@ -14,7 +14,7 @@ model:
   type: efficientnet-b4
 optim:
   kwargs:
-    lr: 3.0e-05
+    lr: 3.0e-06
   type: Adam
 optim_scheduler:
   type: ExponentialLR

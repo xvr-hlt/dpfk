@@ -6,3 +6,5 @@ facedet_kwargs:
     margin: 32
     post_process: False
     select_largest: False
+
+n_frames: 12
