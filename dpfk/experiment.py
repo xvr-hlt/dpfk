@@ -7,7 +7,6 @@ from os import path
 
 import pytorch_lightning as pl
 import torch
-import wandb
 import yaml
 from pytorch_lightning import callbacks
 from torch import distributed, nn, optim
@@ -15,6 +14,7 @@ from torch.nn import functional as F
 from torchvision import transforms
 
 import dpfk.nn.model
+import wandb
 from dpfk.data import loader, util
 
 
@@ -25,7 +25,6 @@ class Experiment(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.image_scales = config['image_scales']
 
         self.model, self.normalize = dpfk.nn.model.get_model_normalize_from_config(
             config)
@@ -56,9 +55,6 @@ class Experiment(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        with torch.no_grad():
-            scale = random.choice(self.image_scales)
-            x = F.interpolate(x, scale_factor=scale)
         y_hat = self.forward(x)
 
         loss = self.loss(y_hat, y)
@@ -147,7 +143,7 @@ class Experiment(pl.LightningModule):
             'val_fn': fn
         }
 
-        if self.rank == 0 and n > 1000:
+        if self.rank == 0 and n > 10000:
             self.wandb.log(metrics)
         return metrics
 

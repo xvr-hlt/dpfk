@@ -1,4 +1,5 @@
 import dataclasses
+import glob
 import json
 import os
 from concurrent import futures
@@ -7,7 +8,10 @@ from typing import Optional
 
 import cv2
 import numpy as np
+import torch
 from tqdm.auto import tqdm
+
+from . import loader
 
 
 @dataclasses.dataclass
@@ -35,7 +39,7 @@ def get_instances_from_folder(folder):
     return instances
 
 
-def grab_frames(vid_path: str, n: int = 16):
+def grab_frames(vid_path: str, n: int = 16, rgb=False):
     capture = cv2.VideoCapture(vid_path)
     n_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     sample = set(np.linspace(0, n_frames - 1, n).astype(int))
@@ -44,6 +48,8 @@ def grab_frames(vid_path: str, n: int = 16):
         if i in sample:
             success, im = capture.retrieve()
             if success:
+                if rgb:
+                    im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
                 yield im
     capture.release()
 
@@ -74,11 +80,25 @@ def write_frames(folders, destination_folder='data/', resolution=(1024, 576)):
                  total=len(instances))
 
 
-"""
-def scratch():
-    mt = pd.read_csv('metadata.csv', index_col=0)
-    audio_altered = ((mt['original'] != 'NAN') & (mt['wav.hash'] != mt['wav.hash.orig']))
-    mt_audio = mt[audio_altered]
-    g45 = mt_audio.folder.map(lambda x: int(x.split('_')[-1]) >= 45)   
-    mt_audio[mt_audio['audio.@codec_time_base'] == '1/16000']
-"""
+def write_faces(detector, input_base, output_base):
+    os.mkdir(output_base)
+    input_folders = glob.glob(path.join(input_base, '*'))
+    for input_folder in tqdm(input_folders):
+        _, folder_stub = path.split(input_folder)
+        output_folder = path.join(output_base, folder_stub)
+        os.mkdir(output_folder)
+        input_paths = glob.glob(path.join(input_folder, '*.mp4'))
+        dataset = loader.VideoDataset(input_paths, n=8)
+        dataloader = torch.utils.data.DataLoader(dataset,
+                                                 collate_fn=lambda x: x,
+                                                 batch_size=None,
+                                                 num_workers=12)
+        for ims, pth in tqdm(dataloader):
+            _, file = path.split(pth)
+            stub, _ = path.splitext(file)
+            out_pths = [
+                path.join(output_folder, f"{stub}_{ix}.jpg")
+                for ix in range(len(ims))
+            ]
+            with torch.no_grad():
+                detector(ims, save_path=out_pths)

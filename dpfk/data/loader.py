@@ -1,14 +1,19 @@
 import glob
 from os import path
 
+import albumentations
+import cv2
 import numpy as np
 import torch
+from albumentations import pytorch as albumtorch
 from PIL import Image
 from torchvision import transforms
+from torchvision.transforms import functional as FT
 
 import dpfk
 
 from . import util
+
 
 class ImageLoader(torch.utils.data.Dataset):
 
@@ -25,17 +30,18 @@ class ImageLoader(torch.utils.data.Dataset):
         pipeline = []
         if augmentation is not None:
             pipeline.append(augmentation)
-        pipeline.append(transforms.Resize(size))
-        pipeline.append(transforms.ToTensor())
-        if normalization is not None:
-            pipeline.append(normalization)
-        self.pipeline = transforms.Compose(pipeline)
+        pipeline.append(albumentations.Resize(*size))
+        pipeline.append(albumtorch.ToTensor())
+        self.pipeline = albumentations.Compose(pipeline)
+        self.normalization = normalization
 
     def __getitem__(self, i):
         file_path = self.files[i]
         im = Image.open(file_path)
-        im = self.pipeline(im)
-
+        im = np.array(im)
+        im = self.pipeline(image=im)['image']
+        if self.normalization:
+            im = self.normalization(im)
         _, f = path.split(file_path)
         stub = f.split('_')[0]
         label = self.labels[stub]
@@ -52,8 +58,7 @@ class ImageLoader(torch.utils.data.Dataset):
         folders = sorted(glob.glob(path.join(data_conf['instances_home'], '*')))
         train_folders = [f for f in folders if not cls.is_validation_fold(f)]
         train_instances = [
-            i for f in train_folders
-            for i in util.get_instances_from_folder(f)
+            i for f in train_folders for i in util.get_instances_from_folder(f)
         ]
         labels = {i.name.replace('.mp4', ''): i.label for i in train_instances}
         image_folders = sorted(
@@ -77,8 +82,7 @@ class ImageLoader(torch.utils.data.Dataset):
         folders = sorted(glob.glob(path.join(data_conf['instances_home'], '*')))
         val_folders = [f for f in folders if cls.is_validation_fold(f)]
         val_instances = [
-            i for f in val_folders
-            for i in util.get_instances_from_folder(f)
+            i for f in val_folders for i in util.get_instances_from_folder(f)
         ]
         labels = {i.name.replace('.mp4', ''): i.label for i in val_instances}
         image_folders = sorted(
@@ -98,26 +102,33 @@ class ImageLoader(torch.utils.data.Dataset):
         if isinstance(size, list):
             size = tuple(size)
         augs = []
-        augs.append(transforms.RandomHorizontalFlip(prob))
+        augs.append(albumentations.HorizontalFlip(prob))
+
         if aug_level > 0:
-            distortion_scale = [None, 0.125, 0.25, 0.5, 0.75][aug_level]
+            shift_limit = [None, 0.0625, 0.125, 0.1875][aug_level]
+            rotate_limit = [None, 20., 40., 60.][aug_level]
+            scale_limit = [None, 0.1, 0.2, 0.3][aug_level]
             augs.append(
-                transforms.RandomPerspective(distortion_scale=distortion_scale,
-                                             p=prob))
+                albumentations.ShiftScaleRotate(
+                    shift_limit,
+                    scale_limit,
+                    rotate_limit,
+                    p=prob,
+                    border_mode=cv2.BORDER_CONSTANT))
+            augs.append(albumentations.Downscale(p=prob / 4))
+        return albumentations.Compose(augs)
 
-            degrees = [None, 20., 40., 60., 80.][aug_level]
-            augs.append(
-                transforms.RandomApply([transforms.RandomRotation(degrees)],
-                                       p=prob))
-            scale = [None, (0.9, 1.0), (0.8, 1.0), (0.7, 1.0),
-                     (0.8, 1.0)][aug_level]
-            ratio = [None, (0.9, 1.1), (0.8, 1.2), (0.7, 1.3),
-                     (0.8, 1.4)][aug_level]
 
-            augs.append(
-                transforms.RandomApply([
-                    transforms.RandomResizedCrop(
-                        size=size, scale=scale, ratio=ratio)
-                ],
-                                       p=prob))
-        return transforms.Compose(augs)
+class VideoDataset(torch.utils.data.Dataset):
+
+    def __init__(self, paths, n=16):
+        self.paths = paths
+        self.n = n
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, ix):
+        pth = self.paths[ix]
+        ims = list(util.grab_frames(pth, n=self.n, rgb=True))
+        return ims, pth

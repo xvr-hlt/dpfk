@@ -1,20 +1,20 @@
 data:
-  batch_size: 28
-  images_home: /home/xavier_holt/data/image/segm/
-  instances_home: /home/xavier_holt/data/image/dfdc
-  size: [576, 1024] # [416, 768]
+  batch_size: 192
+  images_home: /home/xavier_holt/tensorflow_datasets/faces/
+  instances_home: /home/xavier_holt/tensorflow_datasets/ts_im/
+  size: [256, 256]
 loss:
   kwargs:
-    pos_weight: [0.25]
+    pos_weight: [0.15]
   type: BCEWithLogitsLoss
 model:
   kwargs:
     advprop: True
     num_classes: 1
-  type: efficientnet-b3
+  type: efficientnet-b4
 optim:
   kwargs:
-    lr: 5.0e-06
+    lr: 3.0e-05
   type: Adam
 optim_scheduler:
   type: ExponentialLR
@@ -24,14 +24,11 @@ trainer:
     gpus: 4
     use_amp: True
     distributed_backend: ddp
-    train_percent_check: 0.03
     max_epochs: 100
 early_stopping:
   monitor: val_loss_weighted
   patience: 10
   mode: min
-image_scales: [1., 1., .75, .75, .5, .25]
 aug:
   prob: 0.5
   level: 2
-  

@@ -1,2 +1,8 @@
 runs:
-    - 20200323-064916
+    - 20200328-000503
+
+facedet_kwargs:
+    image_size: 256
+    margin: 32
+    post_process: False
+    select_largest: False
