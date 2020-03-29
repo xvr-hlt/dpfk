@@ -26,8 +26,12 @@ class Experiment(pl.LightningModule):
         super().__init__()
         self.config = config
 
-        self.model, self.normalize = dpfk.nn.model.get_model_normalize_from_config(
-            config)
+        model_fn = [
+            dpfk.nn.model.get_model_normalize_from_config,
+            dpfk.nn.model.get_framemodel_normalize_from_config
+        ][config['frame_mode']]
+
+        self.model, self.normalize = model_fn(config)
 
         self.loss = self.configure_loss()
 
@@ -143,14 +147,15 @@ class Experiment(pl.LightningModule):
             'val_fn': fn
         }
 
-        if self.rank == 0 and n > 10000:
+        if self.rank == 0:
             self.wandb.log(metrics)
         return metrics
 
     @pl.data_loader
     def train_dataloader(self):
-        dataset = loader.ImageLoader.get_train_loader(self.config,
-                                                      self.normalize)
+        loader_cls = [loader.ImageLoader,
+                      loader.FrameLoader][self.config['frame_mode']]
+        dataset = loader_cls.get_train_loader(self.config, self.normalize)
         if self.trainer.use_ddp:
             sampler = torch.utils.data.DistributedSampler(dataset, shuffle=True)
         else:
@@ -163,7 +168,10 @@ class Experiment(pl.LightningModule):
 
     @pl.data_loader
     def val_dataloader(self):
-        dataset = loader.ImageLoader.get_val_loader(self.config, self.normalize)
+        loader_cls = [loader.ImageLoader,
+                      loader.FrameLoader][self.config['frame_mode']]
+
+        dataset = loader_cls.get_val_loader(self.config, self.normalize)
 
         if self.trainer.use_ddp:
             sampler = torch.utils.data.DistributedSampler(dataset,

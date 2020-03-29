@@ -1,5 +1,5 @@
 data:
-  batch_size: 192
+  batch_size: 24
   images_home: /home/xavier_holt/tensorflow_datasets/faces/
   instances_home: /home/xavier_holt/tensorflow_datasets/ts_im/
   size: [256, 256]
@@ -11,10 +11,14 @@ model:
   kwargs:
     advprop: True
     num_classes: 1
+  frame_kwargs:
+    conv_channels: 256
+    n_layers: 3
+
   type: efficientnet-b4
 optim:
   kwargs:
-    lr: 3.0e-06
+    lr: 5.0e-06
   type: Adam
 optim_scheduler:
   type: ExponentialLR
@@ -25,6 +29,7 @@ trainer:
     use_amp: True
     distributed_backend: ddp
     max_epochs: 100
+    num_sanity_val_steps: 0
 early_stopping:
   monitor: val_loss_weighted
   patience: 10
@@ -32,3 +37,5 @@ early_stopping:
 aug:
   prob: 0.5
   level: 2
+
+frame_mode: True

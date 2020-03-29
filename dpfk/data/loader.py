@@ -1,4 +1,6 @@
+import collections
 import glob
+import random
 from os import path
 
 import albumentations
@@ -25,6 +27,7 @@ class ImageLoader(torch.utils.data.Dataset):
     def __init__(self, files, labels, normalization, size, augmentation=None):
         if isinstance(size, list):
             size = tuple(size)
+        self.size = size
         self.files = files
         self.labels = labels
         pipeline = []
@@ -117,6 +120,46 @@ class ImageLoader(torch.utils.data.Dataset):
                     border_mode=cv2.BORDER_CONSTANT))
             augs.append(albumentations.Downscale(p=prob / 4))
         return albumentations.Compose(augs)
+
+
+class FrameLoader(ImageLoader):
+    N_FRAMES = 8
+
+    def __init__(self, files, labels, normalization, size, augmentation=None):
+        augmentation = None
+        super().__init__(files, labels, normalization, size, augmentation)
+        seqs = collections.defaultdict(list)
+
+        for f in self.files:
+            _, file = path.split(f)
+            stub, _ = file.split('_')
+            seqs[stub].append(f)
+
+        self.seqs = [(k, sorted(v)) for k, v in seqs.items()]
+
+    def __len__(self):
+        return len(self.seqs)
+
+    def __getitem__(self, i):
+        stub, paths = self.seqs[i]
+        ims = torch.zeros((self.N_FRAMES, 3, *self.size))
+        flip = random.random() > 0.5
+        lq = random.random() > 0.1
+        for ix, pth in enumerate(paths):
+            im = Image.open(pth)
+            im = np.array(im)
+            if flip:
+                im = albumentations.augmentations.functional.hflip(im)
+            if lq:
+                im = albumentations.augmentations.functional.downscale(
+                    im, scale=0.25)
+            im = self.pipeline(image=im)['image']
+            if self.normalization:
+                im = self.normalization(im)
+            ims[ix] = im
+        label = self.labels[stub]
+        label = torch.Tensor([label]).float()
+        return ims, label
 
 
 class VideoDataset(torch.utils.data.Dataset):
